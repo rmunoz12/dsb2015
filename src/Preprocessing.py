@@ -12,12 +12,6 @@ import dicom
 from skimage import io, transform
 
 
-def mkdir(fname):
-    try:
-        os.mkdir(fname)
-    except:
-        pass
-
 def get_frames(root_path):
     """Get path to all the frame in view SAX and contain complete frames"""
     ret = []
@@ -29,8 +23,8 @@ def get_frames(root_path):
         expected = ["%s-%04d.dcm" % (prefix, i + 1) for i in range(30)]
         if all(x in fileset for x in expected):
             ret.append([root + "/" + x for x in expected])
-    # sort for reproduciblity
-    return sorted(ret, key = lambda x: x[0])
+    # sort for reproducibility
+    return sorted(ret, key=lambda x: x[0])
 
 
 def get_label_map(fname):
@@ -122,21 +116,23 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
 # Load the list of all the training frames, and shuffle them
 # Shuffle the training frames
 random.seed(10)
-train_frames = get_frames("./data/train")
+train_frames = get_frames("../data/train")
 random.shuffle(train_frames)
-validate_frames = get_frames("./data/validate")
+validate_frames = get_frames("../data/validate")
+
+os.makedirs("../output/", exist_ok=True)
 
 # Write the corresponding label information of each frame into file.
-write_label_csv("./train-label.csv", train_frames, get_label_map("./data/train.csv"))
-write_label_csv("./validate-label.csv", validate_frames, None)
+write_label_csv("../output/train-label.csv", train_frames, get_label_map("../data/train.csv"))
+write_label_csv("../output/validate-label.csv", validate_frames, None)
 
 # Dump the data of each frame into a CSV file, apply crop to 64 preprocessor
-train_lst = write_data_csv("./train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 64))
-valid_lst = write_data_csv("./validate-64x64-data.csv", validate_frames, lambda x: crop_resize(x, 64))
+train_lst = write_data_csv("../output/train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 64))
+valid_lst = write_data_csv("../output/validate-64x64-data.csv", validate_frames, lambda x: crop_resize(x, 64))
 
 # Generate local train/test split, which you could use to tune your model locally.
-train_index = np.loadtxt("./train-label.csv", delimiter=",")[:,0].astype("int")
+train_index = np.loadtxt("../output/train-label.csv", delimiter=",")[:,0].astype("int")
 train_set, test_set = local_split(train_index)
 split_to_train = [x in train_set for x in train_index]
-split_csv("./train-label.csv", split_to_train, "./local_train-label.csv", "./local_test-label.csv")
-split_csv("./train-64x64-data.csv", split_to_train, "./local_train-64x64-data.csv", "./local_test-64x64-data.csv")
+split_csv("../output/train-label.csv", split_to_train, "../output/local_train-label.csv", "../output/local_test-label.csv")
+split_csv("../output/train-64x64-data.csv", split_to_train, "../output/local_train-64x64-data.csv", "../output/local_test-64x64-data.csv")
