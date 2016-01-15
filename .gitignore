@@ -1,5 +1,7 @@
 # Project-specific
 data/*
+tutorials/mxnet/*.csv
+output/*.csv
 
 # IDEA
 **/.idea/
