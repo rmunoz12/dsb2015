@@ -70,7 +70,7 @@ def encode_csv(label_csv, stytole_csv, diastole_csv):
 # Write encoded label into the target csv
 # We use CSV so that not all data need to sit into memory
 # You can also use inmemory numpy array if your machine is large enough
-encode_csv("./train-label.csv", "./train-stytole.csv", "./train-diastole.csv")
+encode_csv("../output/train-label.csv", "../output/train-stytole.csv", "../output/train-diastole.csv")
 
 
 # # Training the stytole net
@@ -80,11 +80,11 @@ encode_csv("./train-label.csv", "./train-stytole.csv", "./train-diastole.csv")
 network = get_lenet()
 batch_size = 32
 devs = [mx.gpu(0)]
-data_train = mx.io.CSVIter(data_csv="./train-64x64-data.csv", data_shape=(30, 64, 64),
-                           label_csv="./train-stytole.csv", label_shape=(600,),
+data_train = mx.io.CSVIter(data_csv="../output/train-64x64-data.csv", data_shape=(30, 64, 64),
+                           label_csv="../output/train-stytole.csv", label_shape=(600,),
                            batch_size=batch_size)
 
-data_validate = mx.io.CSVIter(data_csv="./validate-64x64-data.csv", data_shape=(30, 64, 64),
+data_validate = mx.io.CSVIter(data_csv="../output/validate-64x64-data.csv", data_shape=(30, 64, 64),
                               batch_size=1)
 
 stytole_model = mx.model.FeedForward(ctx=devs,
@@ -111,8 +111,8 @@ stytole_prob = stytole_model.predict(data_validate)
 network = get_lenet()
 batch_size = 32
 devs = [mx.gpu(0)]
-data_train = mx.io.CSVIter(data_csv="./train-64x64-data.csv", data_shape=(30, 64, 64),
-                           label_csv="./train-diastole.csv", label_shape=(600,),
+data_train = mx.io.CSVIter(data_csv="../output/train-64x64-data.csv", data_shape=(30, 64, 64),
+                           label_csv="../output/train-diastole.csv", label_shape=(600,),
                            batch_size=batch_size)
 
 diastole_model = mx.model.FeedForward(ctx=devs,
@@ -156,8 +156,8 @@ def accumulate_result(validate_lst, prob):
 
 # In[9]:
 
-stytole_result = accumulate_result("./validate-label.csv", stytole_prob)
-diastole_result = accumulate_result("./validate-label.csv", diastole_prob)
+stytole_result = accumulate_result("../output/validate-label.csv", stytole_prob)
+diastole_result = accumulate_result("../output/validate-label.csv", diastole_prob)
 
 
 # In[10]:
@@ -169,7 +169,7 @@ def doHist(data):
         h[j:] += 1
     h /= len(data)
     return h
-train_csv = np.genfromtxt("./train-label.csv", delimiter=',')
+train_csv = np.genfromtxt("../output/train-label.csv", delimiter=',')
 hSystole = doHist(train_csv[:, 1])
 hDiastole = doHist(train_csv[:, 2])
 
@@ -193,8 +193,8 @@ def submission_helper(pred):
 
 # In[12]:
 
-fi = csv.reader(open("data/sample_submission_validate.csv"))
-f = open("submission.csv", "w")
+fi = csv.reader(open("../data/sample_submission_validate.csv"))
+f = open("../output/submission.csv", "w")
 fo = csv.writer(f, lineterminator='\n')
 fo.writerow(fi.__next__())
 for line in fi:
