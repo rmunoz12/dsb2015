@@ -1,4 +1,4 @@
-"""Training script, this is converted from a ipython notebook
+"""Training script
 """
 
 import os
@@ -8,10 +8,49 @@ import numpy as np
 import mxnet as mx
 import logging
 
+from argparse import ArgumentParser
+from collections import namedtuple
+
+
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-# In[2]:
+
+def get_args():
+    p = ArgumentParser(description="train model and predict on validation data")
+    p.add_argument("--local", help="train and predict on local sets",
+                   action='store_true')
+    return p.parse_args()
+
+
+def get_paths(args):
+    # TODO load config from seperate module
+    Paths = namedtuple('Paths',
+                       ['TRAIN_DATA_IN', 'TRAIN_LABEL_IN',
+                        'TRAIN_SYSTOLE_OUT', 'TRAIN_DIASTOLE_OUT',
+                        'VALID_DATA_IN', 'VALID_LABEL_OUT',
+                        'SAMPLE_SUBMIT_IN', 'SUBMIT_OUT',
+                        'MODEL_OUT', 'TEST_DATA_PATH'])
+    TRAIN_DATA_IN = '../output/train-64x64-data.csv'
+    TRAIN_LABEL_IN = '../output/train-label.csv'
+    TRAIN_SYSTOLE_OUT = '../output/train-stytole.csv'
+    TRAIN_DIASTOLE_OUT = '../output/train-diastole.csv'
+    VALID_DATA_IN = '../output/validate-64x64-data.csv'
+    VALID_LABEL_OUT = '../output/validate-label.csv'
+    SAMPLE_SUBMIT_IN = '../data/sample_submission_validate.csv'
+    SUBMIT_OUT = '../output/submission.csv'
+    MODEL_OUT = None       # TODO save model output
+    TEST_DATA_PATH = None  # TODO load test_data path (round 2)
+    if args.local:
+        TRAIN_DATA_IN = '../output/local_train-64x64-data.csv'
+        TRAIN_LABEL_IN = '../output/local_train-label.csv'
+        VALID_DATA_IN = '../output/local_test-64x64-data.csv'
+        VALID_LABEL_OUT = '../output/local_test-label.csv'
+    p = Paths(TRAIN_DATA_IN, TRAIN_LABEL_IN, TRAIN_SYSTOLE_OUT,
+              TRAIN_DIASTOLE_OUT, VALID_DATA_IN, VALID_LABEL_OUT,
+              SAMPLE_SUBMIT_IN, SUBMIT_OUT, MODEL_OUT, TEST_DATA_PATH)
+    return p
+
 
 def get_lenet():
     """ A lenet style net, takes difference of each frame as input.
@@ -37,6 +76,7 @@ def get_lenet():
     # Otherwise we can also change the provide_data in the data iter
     return mx.symbol.LogisticRegressionOutput(data=fc1, name='softmax')
 
+
 def CRPS(label, pred):
     """ Custom evaluation metric on CRPS.
     """
@@ -46,8 +86,6 @@ def CRPS(label, pred):
                 pred[i, j + 1] = pred[i, j]
     return np.sum(np.square(label - pred)) / label.size
 
-
-# In[3]:
 
 def encode_label(label_data):
     """Run encoding to encode the label into the CDF target.
@@ -62,29 +100,37 @@ def encode_label(label_data):
         ], dtype=np.uint8)
     return stytole_encode, diastole_encode
 
+
 def encode_csv(label_csv, stytole_csv, diastole_csv):
     stytole_encode, diastole_encode = encode_label(np.loadtxt(label_csv, delimiter=","))
     np.savetxt(stytole_csv, stytole_encode, delimiter=",", fmt="%g")
     np.savetxt(diastole_csv, diastole_encode, delimiter=",", fmt="%g")
 
+
+args = get_args()
+paths = get_paths(args)
+
+
 # Write encoded label into the target csv
 # We use CSV so that not all data need to sit into memory
 # You can also use inmemory numpy array if your machine is large enough
-encode_csv("../output/train-label.csv", "../output/train-stytole.csv", "../output/train-diastole.csv")
+encode_csv(paths.TRAIN_LABEL_IN,
+           paths.TRAIN_SYSTOLE_OUT, paths.TRAIN_DIASTOLE_OUT)
 
 
 # # Training the stytole net
 
-# In[4]:
-
 network = get_lenet()
 batch_size = 32
 devs = [mx.gpu(0)]
-data_train = mx.io.CSVIter(data_csv="../output/train-64x64-data.csv", data_shape=(30, 64, 64),
-                           label_csv="../output/train-stytole.csv", label_shape=(600,),
+data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
+                           data_shape=(30, 64, 64),
+                           label_csv=paths.TRAIN_SYSTOLE_OUT,
+                           label_shape=(600,),
                            batch_size=batch_size)
 
-data_validate = mx.io.CSVIter(data_csv="../output/validate-64x64-data.csv", data_shape=(30, 64, 64),
+data_validate = mx.io.CSVIter(data_csv=paths.VALID_DATA_IN,
+                              data_shape=(30, 64, 64),
                               batch_size=1)
 
 stytole_model = mx.model.FeedForward(ctx=devs,
@@ -94,25 +140,24 @@ stytole_model = mx.model.FeedForward(ctx=devs,
         wd                 = 0.00001,
         momentum           = 0.9)
 
-stytole_model.fit(X=data_train, eval_metric = mx.metric.np(CRPS))
+stytole_model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
 
 
 # # Predict stytole
 
-# In[5]:
 
 stytole_prob = stytole_model.predict(data_validate)
 
 
 # # Training the diastole net
 
-# In[6]:
-
 network = get_lenet()
 batch_size = 32
 devs = [mx.gpu(0)]
-data_train = mx.io.CSVIter(data_csv="../output/train-64x64-data.csv", data_shape=(30, 64, 64),
-                           label_csv="../output/train-diastole.csv", label_shape=(600,),
+data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
+                           data_shape=(30, 64, 64),
+                           label_csv=paths.TRAIN_DIASTOLE_OUT,
+                           label_shape=(600,),
                            batch_size=batch_size)
 
 diastole_model = mx.model.FeedForward(ctx=devs,
@@ -122,19 +167,15 @@ diastole_model = mx.model.FeedForward(ctx=devs,
         wd                 = 0.00001,
         momentum           = 0.9)
 
-diastole_model.fit(X=data_train, eval_metric = mx.metric.np(CRPS))
+diastole_model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
 
 
 # # Predict diastole
-
-# In[7]:
 
 diastole_prob = diastole_model.predict(data_validate)
 
 
 # # Generate Submission
-
-# In[8]:
 
 def accumulate_result(validate_lst, prob):
     sum_result = {}
@@ -142,7 +183,7 @@ def accumulate_result(validate_lst, prob):
     size = prob.shape[0]
     fi = csv.reader(open(validate_lst))
     for i in range(size):
-        line = fi.__next__() # Python2: line = fi.next()
+        line = fi.__next__()  # Python2: line = fi.next()
         idx = int(line[0])
         if idx not in cnt_result:
             cnt_result[idx] = 0.
@@ -156,8 +197,8 @@ def accumulate_result(validate_lst, prob):
 
 # In[9]:
 
-stytole_result = accumulate_result("../output/validate-label.csv", stytole_prob)
-diastole_result = accumulate_result("../output/validate-label.csv", diastole_prob)
+stytole_result = accumulate_result(paths.VALID_LABEL_OUT, stytole_prob)
+diastole_result = accumulate_result(paths.VALID_LABEL_OUT, diastole_prob)
 
 
 # In[10]:
@@ -169,7 +210,7 @@ def doHist(data):
         h[j:] += 1
     h /= len(data)
     return h
-train_csv = np.genfromtxt("../output/train-label.csv", delimiter=',')
+train_csv = np.genfromtxt(paths.TRAIN_LABEL_IN, delimiter=',')
 hSystole = doHist(train_csv[:, 1])
 hDiastole = doHist(train_csv[:, 2])
 
@@ -191,27 +232,73 @@ def submission_helper(pred):
 
 
 
+def calc_local_CRPS(submit_path, label_path):
+    # https://www.kaggle.com/c/second-annual-data-science-bowl/details/evaluation
+    label_csv = np.genfromtxt(label_path, delimiter=",")
+    label_csv = np.repeat(label_csv, 2, axis=0)
+    fi = csv.reader(open(submit_path))
+    fi.__next__()
+    score = 0
+    line_num = 0
+    for line in fi:
+        idx = line[0]
+        _, target = idx.split('_')
+        lbl = None
+        if target == 'Diastole':
+            lbl = label_csv[line_num, 2]
+        else:
+            lbl = label_csv[line_num, 1]
+        p = np.array(line[1:], dtype=np.float64)
+        h = np.array(lbl < np.arange(600), dtype=np.uint8)
+        score += np.sum(np.square(p - h))
+        line_num += 1
+    score /= 600 * label_csv.shape[0]
+    return score
+
+
 # In[12]:
 
-fi = csv.reader(open("../data/sample_submission_validate.csv"))
-f = open("../output/submission.csv", "w")
-fo = csv.writer(f, lineterminator='\n')
-fo.writerow(fi.__next__())
-for line in fi:
-    idx = line[0]
-    key, target = idx.split('_')
-    key = int(key)
-    out = [idx]
-    if key in stytole_result:
-        if target == 'Diastole':
-            out.extend(list(submission_helper(diastole_result[key])))
+if not args.local:
+    fi = csv.reader(open(paths.SAMPLE_SUBMIT_IN))
+    f = open(paths.SUBMIT_OUT, "w")
+    fo = csv.writer(f, lineterminator='\n')
+    fo.writerow(fi.__next__())
+    for line in fi:
+        idx = line[0]
+        key, target = idx.split('_')
+        key = int(key)
+        out = [idx]
+        if key in stytole_result:
+            if target == 'Diastole':
+                out.extend(list(submission_helper(diastole_result[key])))
+            else:
+                out.extend(list(submission_helper(stytole_result[key])))
         else:
-            out.extend(list(submission_helper(stytole_result[key])))
-    else:
-        print("Miss: %s" % idx)
-        if target == 'Diastole':
-            out.extend(hDiastole)
-        else:
-            out.extend(hSystole)
-    fo.writerow(out)
-f.close()
+            print("Miss: %s" % idx)
+            if target == 'Diastole':
+                out.extend(hDiastole)
+            else:
+                out.extend(hSystole)
+        fo.writerow(out)
+    f.close()
+else:
+    fi = csv.reader(open(paths.SAMPLE_SUBMIT_IN))
+    f = open(paths.SUBMIT_OUT, "w")
+    fo = csv.writer(f, lineterminator='\n')
+    fo.writerow(fi.__next__())
+
+    # Grab local-test ids
+    test_csv = np.genfromtxt(paths.VALID_LABEL_OUT, delimiter=',')
+    ids = test_csv[:, 0].astype(int)
+    # ids = np.repeat(ids, 2)
+    for id in ids:
+        s_out = [str(id) + "_Systole"]
+        d_out = [str(id) + "_Diastole"]
+        s_out.extend(list(submission_helper(stytole_result[id])))
+        d_out.extend(list(submission_helper(diastole_result[id])))
+        fo.writerow(d_out)
+        fo.writerow(s_out)
+    f.close()
+    score = calc_local_CRPS(paths.SUBMIT_OUT, paths.VALID_LABEL_OUT)
+    logger.info('Local CRPS: {}'.format(score))
+
