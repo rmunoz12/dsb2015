@@ -132,8 +132,8 @@ write_label_csv("../output/train-label.csv", train_frames, get_label_map("../dat
 write_label_csv("../output/validate-label.csv", validate_frames, None)
 
 # Dump the data of each frame into a CSV file, apply crop to 64 preprocessor
-train_lst = write_data_csv("../output/train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 64))
-valid_lst = write_data_csv("../output/validate-64x64-data.csv", validate_frames, lambda x: crop_resize(x, 64))
+train_lst = write_data_csv("../output/train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 128))
+valid_lst = write_data_csv("../output/validate-64x64-data.csv", validate_frames, lambda x: crop_resize(x, 128))
 
 # Generate local train/test split, which you could use to tune your model locally.
 train_index = np.loadtxt("../output/train-label.csv", delimiter=",")[:,0].astype("int")
