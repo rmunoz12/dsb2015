@@ -12,6 +12,11 @@ import dicom
 from skimage import io, transform
 
 
+# TODO handle sax files with n != 30 dicom images
+# TODO explore 2ch and 4ch folders
+# TODO order images by slice depth
+
+
 def get_frames(root_path):
     """Get path to all the frame in view SAX and contain complete frames"""
     ret = []
@@ -89,11 +94,11 @@ def crop_resize(img, size):
     return resized_img.astype("uint8")
 
 
-def local_split(train_index):
+def local_split(train_index, test_frac):
     random.seed(0)
     train_index = set(train_index)
     all_index = sorted(train_index)
-    num_test = int(len(all_index) / 3)
+    num_test = int(len(all_index) * test_frac)
     random.shuffle(all_index)
     train_set = set(all_index[num_test:])
     test_set = set(all_index[:num_test])
@@ -132,7 +137,7 @@ valid_lst = write_data_csv("../output/validate-64x64-data.csv", validate_frames,
 
 # Generate local train/test split, which you could use to tune your model locally.
 train_index = np.loadtxt("../output/train-label.csv", delimiter=",")[:,0].astype("int")
-train_set, test_set = local_split(train_index)
+train_set, test_set = local_split(train_index, 0.1)
 split_to_train = [x in train_set for x in train_index]
 split_csv("../output/train-label.csv", split_to_train, "../output/local_train-label.csv", "../output/local_test-label.csv")
 split_csv("../output/train-64x64-data.csv", split_to_train, "../output/local_train-64x64-data.csv", "../output/local_test-64x64-data.csv")
