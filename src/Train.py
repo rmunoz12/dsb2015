@@ -62,7 +62,7 @@ def get_lenet():
     source = mx.sym.Concat(*diffs)
     net = mx.sym.Convolution(source, kernel=(3, 3), num_filter=64)
     net = mx.sym.Activation(net, act_type="relu")
-    net = mx.sym.Convolution(source, kernel=(3, 3), num_filter=64)
+    net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=64)
     net = mx.sym.Activation(net, act_type="relu")
     net = mx.sym.Pooling(net, pool_type="max", kernel=(2,2), stride=(2,2))
     net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=128)
@@ -84,13 +84,13 @@ def get_lenet():
     net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
     net = mx.sym.Activation(net, act_type="relu")
     net = mx.sym.Pooling(net, pool_type="max", kernel=(2,2), stride=(2,2))
-    net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
-    net = mx.sym.Activation(net, act_type="relu")
-    net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
-    net = mx.sym.Activation(net, act_type="relu")
-    net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
-    net = mx.sym.Activation(net, act_type="relu")
-    net = mx.sym.Pooling(net, pool_type="max", kernel=(2,2), stride=(2,2))
+    # net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
+    # net = mx.sym.Activation(net, act_type="relu")
+    # net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
+    # net = mx.sym.Activation(net, act_type="relu")
+    # net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=512)
+    # net = mx.sym.Activation(net, act_type="relu")
+    # net = mx.sym.Pooling(net, pool_type="max", kernel=(2,2), stride=(2,2))
     # first fullc
     flatten = mx.symbol.Flatten(net)
     flatten = mx.symbol.Dropout(flatten)
@@ -161,7 +161,7 @@ lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
 # # Training the stytole net
 
 network = get_lenet()
-batch_size = 128
+batch_size = 32
 devs = [mx.gpu(0)]
 data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
                            data_shape=(30, 128, 128),
@@ -175,8 +175,8 @@ data_validate = mx.io.CSVIter(data_csv=paths.VALID_DATA_IN,
 
 stytole_model = mx.model.FeedForward(ctx=devs,
         symbol             = network,
-        num_epoch          = 120,
-        learning_rate      = 0.2,
+        num_epoch          = 65,
+        learning_rate      = 0.6,
         wd                 = 0.0005,
         momentum           = 0.9,
         initializer=KSH_Init(),
@@ -204,8 +204,8 @@ data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
 
 diastole_model = mx.model.FeedForward(ctx=devs,
         symbol             = network,
-        num_epoch          = 120,
-        learning_rate      = 0.2,
+        num_epoch          = 65,
+        learning_rate      = 0.6,
         wd                 = 0.0005,
         momentum           = 0.9,
         initializer=KSH_Init(),
