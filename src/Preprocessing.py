@@ -84,11 +84,11 @@ def crop_resize(img, size):
     if img.shape[0] < img.shape[1]:
         img = img.T
     # we crop image from center
-    short_egde = min(img.shape[:2])
-    yy = int((img.shape[0] - short_egde) / 2)
-    xx = int((img.shape[1] - short_egde) / 2)
-    crop_img = img[yy : yy + short_egde, xx : xx + short_egde]
-    # resize to 64, 64
+    short_edge = min(img.shape[:2])
+    yy = int((img.shape[0] - short_edge) / 2)
+    xx = int((img.shape[1] - short_edge) / 2)
+    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
+
     resized_img = transform.resize(crop_img, (size, size))
     resized_img *= 255
     return resized_img.astype("uint8")
@@ -120,7 +120,7 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
 
 # Load the list of all the training frames, and shuffle them
 # Shuffle the training frames
-random.seed(10)
+random.seed(100)
 train_frames = get_frames("../data/train")
 random.shuffle(train_frames)
 validate_frames = get_frames("../data/validate")
