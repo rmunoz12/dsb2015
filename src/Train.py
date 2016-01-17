@@ -68,7 +68,7 @@ def get_lenet():
     net = mx.sym.BatchNorm(net, fix_gamma=True)
     net = mx.sym.Activation(net, act_type="relu")
     net = mx.sym.Pooling(net, pool_type="max", kernel=(2,2), stride=(2,2))
-    net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=128)
+    net = mx.sym.Convolution(net, kernel=(3, 3), num_filter=64)
     net = mx.sym.BatchNorm(net, fix_gamma=True)
     net = mx.sym.Activation(net, act_type="relu")
     # net = mx.sym.Pooling(net, pool_type="max", kernel=(2,2), stride=(2,2))
@@ -132,6 +132,17 @@ encode_csv(paths.TRAIN_LABEL_IN,
            paths.TRAIN_SYSTOLE_OUT, paths.TRAIN_DIASTOLE_OUT)
 
 
+
+class KSH_Init(mx.initializer.Normal):
+    def __init__(self, sigma=0.01):
+        super(KSH_Init, self).__init__(sigma)
+
+    def _init_bias(self, _, arr):
+        arr[:] = 1.0
+
+
+lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
+
 # # Training the stytole net
 
 network = get_lenet()
@@ -141,7 +152,7 @@ data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
                            data_shape=(30, 128, 128),
                            label_csv=paths.TRAIN_SYSTOLE_OUT,
                            label_shape=(600,),
-                           batch_size=batch_size)
+                           batch_size=batch_size,)
 
 data_validate = mx.io.CSVIter(data_csv=paths.VALID_DATA_IN,
                               data_shape=(30, 128, 128),
@@ -150,9 +161,11 @@ data_validate = mx.io.CSVIter(data_csv=paths.VALID_DATA_IN,
 stytole_model = mx.model.FeedForward(ctx=devs,
         symbol             = network,
         num_epoch          = 120,
-        learning_rate      = 0.001,
+        learning_rate      = 0.2,
         wd                 = 0.0005,
-        momentum           = 0.9)
+        momentum           = 0.9,
+        initializer=KSH_Init(),
+        lr_scheduler=lr)
 
 stytole_model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
 
@@ -177,9 +190,11 @@ data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
 diastole_model = mx.model.FeedForward(ctx=devs,
         symbol             = network,
         num_epoch          = 120,
-        learning_rate      = 0.001,
+        learning_rate      = 0.2,
         wd                 = 0.0005,
-        momentum           = 0.9)
+        momentum           = 0.9,
+        initializer=KSH_Init(),
+        lr_scheduler=lr)
 
 diastole_model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
 
