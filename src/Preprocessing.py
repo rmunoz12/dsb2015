@@ -94,6 +94,66 @@ def crop_resize(img, size):
     return resized_img.astype("uint8")
 
 
+def rotate(img, degree):
+    return transform.rotate(img, degree)
+
+
+def flip(img):
+    return np.fliplr(img)
+
+
+def write_data_and_label_csvs(data_fname, label_fname, frames, label_map):
+    label_fo = open(label_fname, 'w')
+    data_fo = open(data_fname, 'w')
+    lwriter = csv.writer(label_fo)
+    dwriter = csv.writer(data_fo)
+    new_frames = []
+    flags = ['n', 'r', 'f', 'rf']
+    preproc = None
+    for lst in frames:
+        for flag in flags:
+            new_lst = [flag]
+            new_lst.extend(lst)
+            new_frames.append(new_lst)
+    random.shuffle(new_frames)
+    counter = 0
+    result = []
+    for lst in new_frames:
+        data = []
+        flag, frame_data = lst[0], lst[1:]
+        index = int(frame_data[0].split('/')[3])
+        if label_map != None:
+            label_fo.write(label_map[index])
+        else:
+            label_fo.write("%d,0,0\n" % index)
+        deg = random.random() * 360
+        if flag == 'n':
+            preproc = lambda x: crop_resize(x, 128)
+        elif flag == 'r':
+            preproc = lambda x: crop_resize(rotate(x, deg), 128)
+        elif flag == 'f':
+            preproc = lambda x: crop_resize(flip(x), 128)
+        else:  # flag == 'rf'
+            preproc = lambda x: crop_resize(flip(rotate(x, deg)), 128)
+        for path in frame_data:
+            f = dicom.read_file(path)
+            img = preproc(f.pixel_array.astype(float) / np.max(f.pixel_array))
+            dst_path = path.rsplit(".", 1)[0] + "." + flag + ".jpg"
+            scipy.misc.imsave(dst_path, img)
+            result.append(dst_path)
+            data.append(img)
+        data = np.array(data, dtype=np.uint8)
+        data = data.reshape(data.size)
+        dwriter.writerow(data)
+        counter += 1
+        if counter % 100 == 0:
+            print("%d slices processed" % counter)
+    print("All finished, %d slices in total" % counter)
+    label_fo.close()
+    data_fo.close()
+    return result
+
+
 def local_split(train_index, test_frac):
     random.seed(0)
     train_index = set(train_index)
@@ -128,11 +188,12 @@ validate_frames = get_frames("../data/validate")
 os.makedirs("../output/", exist_ok=True)
 
 # Write the corresponding label information of each frame into file.
-write_label_csv("../output/train-label.csv", train_frames, get_label_map("../data/train.csv"))
+# write_label_csv("../output/train-label.csv", train_frames, get_label_map("../data/train.csv"))
 write_label_csv("../output/validate-label.csv", validate_frames, None)
 
 # Dump the data of each frame into a CSV file, apply crop to 64 preprocessor
-train_lst = write_data_csv("../output/train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 128))
+# train_lst = write_data_csv("../output/train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 128))
+train_lst = write_data_and_label_csvs('../output/train-64x64-data.csv', '../output/train-label.csv', train_frames, get_label_map('../data/train.csv'))
 valid_lst = write_data_csv("../output/validate-64x64-data.csv", validate_frames, lambda x: crop_resize(x, 128))
 
 # Generate local train/test split, which you could use to tune your model locally.
