@@ -223,7 +223,7 @@ data_validate = mx.io.CSVIter(data_csv=paths.VALID_DATA_IN,
 
 stytole_model = mx.model.FeedForward(ctx=devs,
         symbol             = network,
-        num_epoch          = 100,
+        num_epoch          = 50,
         learning_rate      = 0.2,  # 0.2 for alexnet
         wd                 = 0.0005,
         momentum           = 0.9,
@@ -244,6 +244,9 @@ stytole_prob = stytole_model.predict(data_validate)
 network = get_alexnet()
 batch_size = 128
 devs = [mx.gpu(0)]
+
+lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
+
 data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
                            data_shape=(30, 128, 128),
                            label_csv=paths.TRAIN_DIASTOLE_OUT,
@@ -252,7 +255,7 @@ data_train = mx.io.CSVIter(data_csv=paths.TRAIN_DATA_IN,
 
 diastole_model = mx.model.FeedForward(ctx=devs,
         symbol             = network,
-        num_epoch          = 100,
+        num_epoch          = 50,
         learning_rate      = 0.2,  # 0.2 for alexnet
         wd                 = 0.0005,
         momentum           = 0.9,
