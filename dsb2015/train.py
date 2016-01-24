@@ -74,48 +74,27 @@ class KSH_Init(mx.initializer.Normal):
         arr[:] = 1.0
 
 
-def train_systole(cfg):
-    lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
-    network = get_alexnet()
-    batch_size = 128
-    devs = [mx.gpu(0)]
-    data_train = mx.io.CSVIter(data_csv=cfg.train_data_csv,
-                               data_shape=(30, 128, 128),
-                               label_csv=cfg.train_systole_out,
-                               label_shape=(600,),
-                               batch_size=batch_size)
-    systole_model = mx.model.FeedForward(ctx=devs,
-                                         symbol=network,
-                                         num_epoch=50,
-                                         learning_rate=0.2,  # 0.2 for alexnet
-                                         wd=0.0005,
-                                         momentum=0.9,
-                                         initializer=KSH_Init(),
-                                         lr_scheduler=lr)
-    systole_model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
-    return systole_model
-
-
-def train_diastole(cfg):
+def train_model(data_csv, label_csv, **kwargs):
     network = get_alexnet()
     batch_size = 128
     devs = [mx.gpu(0)]
     lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
-    data_train = mx.io.CSVIter(data_csv=cfg.train_data_csv,
+
+    data_train = mx.io.CSVIter(data_csv=data_csv,
                                data_shape=(30, 128, 128),
-                               label_csv=cfg.train_diastole_out,
+                               label_csv=label_csv,
                                label_shape=(600,),
                                batch_size=batch_size)
-    diastole_model = mx.model.FeedForward(ctx=devs,
-                                          symbol=network,
-                                          num_epoch=50,
-                                          learning_rate=0.2,  # 0.2 for alexnet
-                                          wd=0.0005,
-                                          momentum=0.9,
-                                          initializer=KSH_Init(),
-                                          lr_scheduler=lr)
-    diastole_model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
-    return diastole_model
+    model = mx.model.FeedForward(ctx=devs,
+                                 symbol=network,
+                                 num_epoch=50,
+                                 learning_rate=0.2,  # 0.2 for alexnet
+                                 wd=0.0005,
+                                 momentum=0.9,
+                                 initializer=KSH_Init(),
+                                 lr_scheduler=lr)
+    model.fit(X=data_train, eval_metric=mx.metric.np(CRPS))
+    return model
 
 
 def accumulate_result(validate_lst, prob):
@@ -169,10 +148,10 @@ def train(cfg):
                                   data_shape=(30, 128, 128),
                                   batch_size=1)
 
-    systole_model = train_systole(cfg)
+    systole_model = train_model(cfg.train_data_csv, cfg.train_systole_out)
     systole_prob = systole_model.predict(data_validate)
 
-    diastole_model = train_diastole(cfg)
+    diastole_model = train_model(cfg.train_data_csv, cfg.train_diastole_out)
     diastole_prob = diastole_model.predict(data_validate)
 
     # # Generate Submission
