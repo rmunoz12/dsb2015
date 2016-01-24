@@ -3,14 +3,12 @@ Preprocessing of training and validation data sets.
 """
 
 import os
-from collections import namedtuple
 import csv
 import random
 
 import scipy
 import numpy as np
 import dicom
-from skimage import transform
 
 from .image_op import gen_augmented_frames
 
@@ -55,6 +53,30 @@ def get_label_map(file_path):
 
 
 def write_data_and_label_csvs(data_fname, label_fname, frames, label_map):
+    """
+    Store frame pixel data and labels as csv files. Each frame and label are
+    written to their respective csv files in the same order. In addition, each
+    processed image from a frame is saved for inspection.
+
+    Parameters
+    ----------
+    data_fname : str
+        Output path for the frame's image data
+
+    label_fname : str
+        Output path for the frame's labels
+
+    frames : list[Frame]
+
+    label_map : dict[int, str]
+        Labels for `frames`. If `None`, then the output will include the frame
+        index and zeros as the class labels.
+
+    Returns
+    -------
+    result : list[str]
+        Paths to processed images.
+    """
     label_fo = open(label_fname, 'w')
     data_fo = open(data_fname, 'w')
     dwriter = csv.writer(data_fo)
