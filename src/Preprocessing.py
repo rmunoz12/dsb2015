@@ -1,7 +1,7 @@
-"""Preprocessing script.
-
-This script walks over the directories and dump the frames into a csv file
 """
+Preprocessing of training and validation data sets.
+"""
+
 import os
 from collections import namedtuple
 import csv
@@ -12,30 +12,12 @@ import numpy as np
 import dicom
 from skimage import transform
 
+from .image_op import gen_augmented_frames
+
 
 # TODO handle sax files with n != 30 dicom images
 # TODO explore 2ch and 4ch folders
 # TODO order images by slice depth
-
-
-class Frame(namedtuple('Frame', 'data func aug_name')):
-    """
-    Represents a frame (30 dicom images), along with the data augmentation
-    function that will be applied to the frame.
-
-    Parameters
-    ----------
-    data : list[str]
-        List of paths to the images in the frame
-
-    func :  np.array[float] -> np.array[float]
-        Data augmentation function. The input and output arrays are 2D.
-
-    aug_name : str
-        augmentation function name
-    """
-    def __lt__(self, other):
-        return self.data < other.data
 
 
 def gen_frame_paths(root_path):
@@ -70,41 +52,6 @@ def get_label_map(file_path):
             arr = line.split(',')
             label_map[int(arr[0])] = line
     return label_map
-
-
-def crop_resize(img, size):
-    """
-    Crop image `img` into a square with side length `size`. Cropping is
-    performed from the center of the image. Furthermore, the image pixel values
-    are converted from floats to integers from 0 to 255.
-
-    Parameters
-    ----------
-    img : np.array
-        2D array
-
-    size : int
-
-    Returns
-    -------
-    resized_img : np.array[np.dtype('uint8')]
-        2D array
-    """
-    short_edge = min(img.shape[:2])
-    yy = int((img.shape[0] - short_edge) / 2)
-    xx = int((img.shape[1] - short_edge) / 2)
-    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
-    resized_img = transform.resize(crop_img, (size, size))
-    resized_img *= 255
-    return resized_img.astype("uint8")
-
-
-def rotate(img, degree):
-    return transform.rotate(img, degree)
-
-
-def flip(img):
-    return np.fliplr(img)
 
 
 def write_data_and_label_csvs(data_fname, label_fname, frames, label_map):
@@ -164,53 +111,19 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
     ftest.close()
 
 
-def get_aug_funcs(normal_only=False):
-    funcs = [(lambda x: crop_resize(x, 128), 'n')]
-    if not normal_only:
-        deg = random.random() * 360
-        funcs.extend([(lambda x: crop_resize(rotate(x, deg), 128), 'r'),
-                      (lambda x: crop_resize(flip(x), 128), 'f'),
-                      (lambda x: crop_resize(flip(rotate(x, deg)), 128), 'rf')])
-    return funcs
-
-
-def gen_augmented_frames(paths, normal_only=False):
-    """
-    Generates a `Frame` that includes the paths to its images as well as the
-    data augmentation function that should applied to the frame.
-
-    Parameters
-    ----------
-    paths : list[str]
-        Paths tot he dicom images of the frame
-
-    normal_only : bool
-        If true, will only return the 'normal' augmentation function, which
-        only crops the input image to the size needed for the training network.
-
-    Yields
-    ------
-    Frame
-    """
-    for lst in paths:
-        funcs = get_aug_funcs(normal_only)
-        for f, name in funcs:
-            yield Frame(data=lst, func=f, aug_name=name)
-
-
 random.seed(100)
 train_paths = gen_frame_paths("../data/train")
 vld_paths = gen_frame_paths("../data/validate")
 
 os.makedirs("../output/", exist_ok=True)
 
-train_frames = gen_augmented_frames(train_paths)
+train_frames = gen_augmented_frames(train_paths, 128)
 train_frames = sorted(train_frames)  # for reproducibility
 random.shuffle(train_frames)
 write_data_and_label_csvs('../output/train-64x64-data.csv', '../output/train-label.csv', train_frames, get_label_map('../data/train.csv'))
 
 
-vld_frames = gen_augmented_frames(vld_paths, normal_only=True)
+vld_frames = gen_augmented_frames(vld_paths, 128, normal_only=True)
 write_data_and_label_csvs("../output/validate-64x64-data.csv", "../output/validate-label.csv", vld_frames, None)
 
 
