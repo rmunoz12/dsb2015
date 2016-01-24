@@ -1,6 +1,4 @@
-"""
-Preprocessing of training and validation data sets.
-"""
+"""Preprocessing of training and validation data sets."""
 
 import os
 import csv
