@@ -74,9 +74,7 @@ class KSH_Init(mx.initializer.Normal):
         arr[:] = 1.0
 
 
-def train_model(data_csv, label_csv, **kwargs):
-    network = get_alexnet()
-    batch_size = 128
+def train_model(data_csv, label_csv, batch_size=128, network=get_alexnet()):
     devs = [mx.gpu(0)]
     lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
 
