@@ -3,18 +3,26 @@
 This script walks over the directories and dump the frames into a csv file
 """
 import os
+from collections import namedtuple
 import csv
-import sys
 import random
+
 import scipy
 import numpy as np
 import dicom
-from skimage import io, transform
+from skimage import transform
 
 
 # TODO handle sax files with n != 30 dicom images
 # TODO explore 2ch and 4ch folders
 # TODO order images by slice depth
+
+
+class Frame(namedtuple('Frame', 'data func aug_name')):
+
+    def __lt__(self, other):
+        return self.data < other.data
+
 
 
 def get_frames(root_path):
@@ -105,40 +113,20 @@ def flip(img):
 def write_data_and_label_csvs(data_fname, label_fname, frames, label_map):
     label_fo = open(label_fname, 'w')
     data_fo = open(data_fname, 'w')
-    lwriter = csv.writer(label_fo)
     dwriter = csv.writer(data_fo)
-    new_frames = []
-    flags = ['n', 'r', 'f', 'rf']
-    preproc = None
-    for lst in frames:
-        for flag in flags:
-            new_lst = [flag]
-            new_lst.extend(lst)
-            new_frames.append(new_lst)
-    random.shuffle(new_frames)
-    counter = 0
-    result = []
-    for lst in new_frames:
+    counter, result = 0, []
+    for frame in frames:
         data = []
-        flag, frame_data = lst[0], lst[1:]
-        index = int(frame_data[0].split('/')[3])
-        if label_map != None:
+        index = int(frame.data[0].split('/')[3])
+        if label_map:
             label_fo.write(label_map[index])
         else:
             label_fo.write("%d,0,0\n" % index)
-        deg = random.random() * 360
-        if flag == 'n':
-            preproc = lambda x: crop_resize(x, 128)
-        elif flag == 'r':
-            preproc = lambda x: crop_resize(rotate(x, deg), 128)
-        elif flag == 'f':
-            preproc = lambda x: crop_resize(flip(x), 128)
-        else:  # flag == 'rf'
-            preproc = lambda x: crop_resize(flip(rotate(x, deg)), 128)
-        for path in frame_data:
+        for path in frame.data:
             f = dicom.read_file(path)
-            img = preproc(f.pixel_array.astype(float) / np.max(f.pixel_array))
-            dst_path = path.rsplit(".", 1)[0] + "." + flag + ".jpg"
+            f = f.pixel_array.astype(float) / np.max(f.pixel_array)
+            img = frame.func(f)
+            dst_path = path.rsplit(".", 1)[0] + "." + frame.aug_name + ".jpg"
             scipy.misc.imsave(dst_path, img)
             result.append(dst_path)
             data.append(img)
@@ -178,23 +166,43 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
     ftrain.close()
     ftest.close()
 
-# Load the list of all the training frames, and shuffle them
-# Shuffle the training frames
+
+def get_aug_funcs():
+    deg = random.random() * 360
+    return [(lambda x: crop_resize(x, 128), 'n'),
+            (lambda x: crop_resize(rotate(x, deg), 128), 'r'),
+            (lambda x: crop_resize(flip(x), 128), 'f'),
+            (lambda x: crop_resize(flip(rotate(x, deg)), 128), 'rf')]
+
+
+def gen_augmented_frames(frames):
+    for lst in frames:
+        funcs = get_aug_funcs()
+        for f, name in funcs:
+            yield Frame(data=lst, func=f, aug_name=name)
+
+
+def gen_norm_frames(paths):
+    for lst in paths:
+        yield Frame(data=lst, func=lambda x: crop_resize(x, 128), aug_name='n')
+
+
 random.seed(100)
-train_frames = get_frames("../data/train")
-random.shuffle(train_frames)
-validate_frames = get_frames("../data/validate")
+train_paths = get_frames("../data/train")
+vld_paths = get_frames("../data/validate")
 
 os.makedirs("../output/", exist_ok=True)
 
-# Write the corresponding label information of each frame into file.
-# write_label_csv("../output/train-label.csv", train_frames, get_label_map("../data/train.csv"))
-write_label_csv("../output/validate-label.csv", validate_frames, None)
+train_frames = gen_augmented_frames(train_paths)
+train_frames = sorted(train_frames)  # for reproducibility
+# random.shuffle(train_frames)
+write_data_and_label_csvs('../output/train-64x64-data.csv', '../output/train-label.csv', train_frames, get_label_map('../data/train.csv'))
 
-# Dump the data of each frame into a CSV file, apply crop to 64 preprocessor
-# train_lst = write_data_csv("../output/train-64x64-data.csv", train_frames, lambda x: crop_resize(x, 128))
-train_lst = write_data_and_label_csvs('../output/train-64x64-data.csv', '../output/train-label.csv', train_frames, get_label_map('../data/train.csv'))
-valid_lst = write_data_csv("../output/validate-64x64-data.csv", validate_frames, lambda x: crop_resize(x, 128))
+
+vld_frames = gen_norm_frames(vld_paths)
+# write_label_csv("../output/validate-label.csv", vld_paths, None)
+# write_data_csv("../output/validate-64x64-data.csv", vld_paths, lambda x: crop_resize(x, 128))
+write_data_and_label_csvs("../output/validate-64x64-data.csv", "../output/validate-label.csv", vld_frames, None)
 
 # Generate local train/test split, which you could use to tune your model locally.
 train_index = np.loadtxt("../output/train-label.csv", delimiter=",")[:,0].astype("int")
