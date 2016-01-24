@@ -33,7 +33,6 @@ def calc_local_CRPS(submit_path, label_path):
     for line in fi:
         idx = line[0]
         _, target = idx.split('_')
-        lbl = None
         if target == 'Diastole':
             lbl = label_csv[line_num, 2]
         else:
@@ -135,47 +134,27 @@ def submission_helper(pred):
     return p
 
 
-def train(cfg):
-    # Write encoded label into the target csv
-    # We use CSV so that not all data need to sit into memory
-    # You can also use inmemory numpy array if your machine is large enough
-    encode_csv(cfg.train_label_csv,
-               cfg.train_systole_out, cfg.train_diastole_out)
-
-    data_validate = mx.io.CSVIter(data_csv=cfg.valid_data_csv,
-                                  data_shape=(30, 128, 128),
-                                  batch_size=1)
-
-    systole_model = train_model(cfg.train_data_csv, cfg.train_systole_out)
-    systole_prob = systole_model.predict(data_validate)
-
-    diastole_model = train_model(cfg.train_data_csv, cfg.train_diastole_out)
-    diastole_prob = diastole_model.predict(data_validate)
-
-    # # Generate Submission
-    stytole_result = accumulate_result(cfg.valid_label_out, systole_prob)
-    diastole_result = accumulate_result(cfg.valid_label_out, diastole_prob)
-
+def write_validation_results(systole_result, diastole_result, cfg):
     # we have 2 person missing due to frame selection, use udibr's hist result instead
     train_csv = np.genfromtxt(cfg.train_label_csv, delimiter=',')
     hSystole = doHist(train_csv[:, 1])
     hDiastole = doHist(train_csv[:, 2])
 
+    fi = csv.reader(open(cfg.sample_submit))
+    f = open(cfg.submit_out, "w")
+    fo = csv.writer(f, lineterminator='\n')
+    fo.writerow(fi.__next__())
     if not cfg.local:
-        fi = csv.reader(open(cfg.sample_submit))
-        f = open(cfg.submit_out, "w")
-        fo = csv.writer(f, lineterminator='\n')
-        fo.writerow(fi.__next__())
         for line in fi:
             idx = line[0]
             key, target = idx.split('_')
             key = int(key)
             out = [idx]
-            if key in stytole_result:
+            if key in systole_result:
                 if target == 'Diastole':
                     out.extend(list(submission_helper(diastole_result[key])))
                 else:
-                    out.extend(list(submission_helper(stytole_result[key])))
+                    out.extend(list(submission_helper(systole_result[key])))
             else:
                 print("Miss: %s" % idx)
                 if target == 'Diastole':
@@ -185,22 +164,37 @@ def train(cfg):
             fo.writerow(out)
         f.close()
     else:
-        fi = csv.reader(open(cfg.sample_submit))
-        f = open(cfg.submit_out, "w")
-        fo = csv.writer(f, lineterminator='\n')
-        fo.writerow(fi.__next__())
-
         # Grab local-test ids
         test_csv = np.genfromtxt(cfg.valid_label_out, delimiter=',')
         ids = test_csv[:, 0].astype(int)
-        # ids = np.repeat(ids, 2)
         for id in ids:
             s_out = [str(id) + "_Systole"]
             d_out = [str(id) + "_Diastole"]
-            s_out.extend(list(submission_helper(stytole_result[id])))
+            s_out.extend(list(submission_helper(systole_result[id])))
             d_out.extend(list(submission_helper(diastole_result[id])))
             fo.writerow(d_out)
             fo.writerow(s_out)
         f.close()
         score = calc_local_CRPS(cfg.submit_out, cfg.valid_label_out)
         logger.info('Local CRPS: {}'.format(score))
+
+
+def train(cfg):
+    # Write encoded label into the target csv
+    # We use CSV so that not all data need to sit into memory
+    # You can also use inmemory numpy array if your machine is large enough
+    encode_csv(cfg.train_label_csv,
+               cfg.train_systole_out, cfg.train_diastole_out)
+
+    systole_model = train_model(cfg.train_data_csv, cfg.train_systole_out)
+    diastole_model = train_model(cfg.train_data_csv, cfg.train_diastole_out)
+
+    data_validate = mx.io.CSVIter(data_csv=cfg.valid_data_csv,
+                                  data_shape=(30, 128, 128),
+                                  batch_size=1)
+    systole_prob = systole_model.predict(data_validate)
+    diastole_prob = diastole_model.predict(data_validate)
+    systole_result = accumulate_result(cfg.valid_label_out, systole_prob)
+    diastole_result = accumulate_result(cfg.valid_label_out, diastole_prob)
+
+    write_validation_results(systole_result, diastole_result, cfg)
