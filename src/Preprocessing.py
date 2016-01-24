@@ -108,18 +108,25 @@ def write_data_and_label_csvs(data_fname, label_fname, frames, label_map):
     return result
 
 
-def local_split(train_index, test_frac):
-    random.seed(0)
-    train_index = set(train_index)
-    all_index = sorted(train_index)
-    num_test = int(len(all_index) * test_frac)
-    random.shuffle(all_index)
-    train_set = set(all_index[num_test:])
-    test_set = set(all_index[:num_test])
-    return train_set, test_set
-
-
 def split_csv(src_csv, split_to_train, train_csv, test_csv):
+    """
+    Splits `src_csv` into `train_csv` and `test_csv`.
+
+    Parameters
+    ----------
+    src_csv : str
+        Path to source csv file.
+
+    split_to_train : list[bool]
+        List with the same length as the number of rows in `src_csv`, indicating
+        whether the row should be included in `train_csv`
+
+    train_csv : str
+        Path to output training csv file.
+
+    test_csv : str
+        Path to output test csv file.
+    """
     ftrain = open(train_csv, "w")
     ftest = open(test_csv, "w")
     cnt = 0
@@ -128,9 +135,39 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
             ftrain.write(l)
         else:
             ftest.write(l)
-        cnt = cnt + 1
+        cnt += 1
     ftrain.close()
     ftest.close()
+
+
+def make_local_split(test_frac):
+    """
+    Generate local train/test split, which can be used evaluate models locally,
+    blind to the result of submission to Kaggle's validation set.
+
+    Parameters
+    ----------
+    test_frac : float
+        The fraction ([0, 1]) of data that should be used for the local test
+        set.
+    """
+    train_index = \
+        np.loadtxt("../output/train-label.csv", delimiter=",")[:, 0].\
+            astype("int")
+    train_index = set(train_index)
+    num_test = int(len(train_index) * test_frac)
+    random.shuffle(list(train_index))
+    train_index = set(train_index[num_test:])
+    split_to_train = [x in train_index for x in train_index]
+    split_csv("../output/train-label.csv",
+              split_to_train,
+              "../output/local_train-label.csv",
+              "../output/local_test-label.csv")
+    split_csv("../output/train-64x64-data.csv",
+              split_to_train,
+              "../output/local_train-64x64-data.csv",
+              "../output/local_test-64x64-data.csv")
+
 
 
 random.seed(100)
@@ -142,16 +179,16 @@ os.makedirs("../output/", exist_ok=True)
 train_frames = gen_augmented_frames(train_paths, 128)
 train_frames = sorted(train_frames)  # for reproducibility
 random.shuffle(train_frames)
-write_data_and_label_csvs('../output/train-64x64-data.csv', '../output/train-label.csv', train_frames, get_label_map('../data/train.csv'))
+write_data_and_label_csvs('../output/train-64x64-data.csv',
+                          '../output/train-label.csv',
+                          train_frames,
+                          get_label_map('../data/train.csv'))
 
 
 vld_frames = gen_augmented_frames(vld_paths, 128, normal_only=True)
-write_data_and_label_csvs("../output/validate-64x64-data.csv", "../output/validate-label.csv", vld_frames, None)
+write_data_and_label_csvs("../output/validate-64x64-data.csv",
+                          "../output/validate-label.csv",
+                          vld_frames,
+                          None)
 
-
-# Generate local train/test split, which you could use to tune your model locally.
-train_index = np.loadtxt("../output/train-label.csv", delimiter=",")[:,0].astype("int")
-train_set, test_set = local_split(train_index, 0.1)
-split_to_train = [x in train_set for x in train_index]
-split_csv("../output/train-label.csv", split_to_train, "../output/local_train-label.csv", "../output/local_test-label.csv")
-split_csv("../output/train-64x64-data.csv", split_to_train, "../output/local_train-64x64-data.csv", "../output/local_test-64x64-data.csv")
+make_local_split()
