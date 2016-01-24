@@ -48,20 +48,20 @@ def calc_local_CRPS(submit_path, label_path):
 def encode_label(label_data):
     """Run encoding to encode the label into the CDF target.
     """
-    stytole = label_data[:, 1]
+    systole = label_data[:, 1]
     diastole = label_data[:, 2]
-    stytole_encode = np.array([
-            (x < np.arange(600)) for x in stytole
+    systole_encode = np.array([
+            (x < np.arange(600)) for x in systole
         ], dtype=np.uint8)
     diastole_encode = np.array([
             (x < np.arange(600)) for x in diastole
         ], dtype=np.uint8)
-    return stytole_encode, diastole_encode
+    return systole_encode, diastole_encode
 
 
-def encode_csv(label_csv, stytole_csv, diastole_csv):
-    stytole_encode, diastole_encode = encode_label(np.loadtxt(label_csv, delimiter=","))
-    np.savetxt(stytole_csv, stytole_encode, delimiter=",", fmt="%g")
+def encode_csv(label_csv, systole_csv, diastole_csv):
+    systole_encode, diastole_encode = encode_label(np.loadtxt(label_csv, delimiter=","))
+    np.savetxt(systole_csv, systole_encode, delimiter=",", fmt="%g")
     np.savetxt(diastole_csv, diastole_encode, delimiter=",", fmt="%g")
 
 
@@ -121,6 +121,7 @@ def doHist(data):
 
 
 def submission_helper(pred):
+    """Ensure submission predictions are monotonically increasing"""
     p = np.zeros(600)
     pred.resize(p.shape)
     p[0] = pred[0]

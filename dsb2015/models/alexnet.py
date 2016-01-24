@@ -1,8 +1,7 @@
 import mxnet as mx
 
 def get_alexnet():
-    """ A lenet style net, takes difference of each frame as input.
-    """
+    """ A alexnet style net, takes difference of each frame as input."""
     source = mx.sym.Variable("data")
     source = (source - 128) * (1.0/128)
     frames = mx.sym.SliceChannel(source, num_outputs=30)
