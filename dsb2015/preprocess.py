@@ -138,7 +138,7 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
     ftest.close()
 
 
-def make_local_split(test_frac, output_path):
+def make_local_split(test_frac, cfg):
     """
     Generate local train/test split, which can be used evaluate models locally,
     blind to the result of submission to Kaggle's validation set.
@@ -153,21 +153,23 @@ def make_local_split(test_frac, output_path):
         Path to output folder, ending with a slash `/`.
     """
     train_index = \
-        np.loadtxt(output_path + "train-label.csv", delimiter=",")[:, 0].\
+        np.loadtxt(cfg.train_label_csv, delimiter=",")[:, 0].\
             astype("int")
     train_index = set(train_index)
     num_test = int(len(train_index) * test_frac)
     random.shuffle(list(train_index))
     train_index = set(train_index[num_test:])
     split_to_train = [x in train_index for x in train_index]
-    split_csv(output_path + "train-label.csv",
+    orig_path = cfg.train_label_csv.rsplit('/', 1)
+    split_csv(cfg.train_label_csv,
               split_to_train,
-              output_path + "local_train-label.csv",
-              output_path + "local_test-label.csv")
-    split_csv(output_path + "train-64x64-data.csv",
+              orig_path[0] + 'local_' + orig_path[1],
+              orig_path[0] + 'local_test' + orig_path[1][5:])  # remove 'train'
+    orig_path = cfg.train_data_csv.rsplit('/', 1)
+    split_csv(cfg.train_data_csv,
               split_to_train,
-              output_path + "local_train-64x64-data.csv",
-              output_path + "local_test-64x64-data.csv")
+              orig_path[0] + 'local_' + orig_path[1],
+              cfg.output_path + 'local_test' + orig_path[1][5:])  # remove 'train'
 
 
 def preprocess(cfg):
@@ -185,13 +187,13 @@ def preprocess(cfg):
     train_frames = gen_augmented_frames(train_paths, 128)
     train_frames = sorted(train_frames)  # for reproducibility
     random.shuffle(train_frames)
-    write_data_and_label_csvs(cfg.output_path + 'train-64x64-data.csv',
-                              cfg.output_path + 'train-label.csv',
+    write_data_and_label_csvs(cfg.train_data_csv,
+                              cfg.train_label_csv,
                               train_frames,
                               get_label_map(cfg.train_path + 'train.csv'))
     vld_frames = gen_augmented_frames(vld_paths, 128, normal_only=True)
-    write_data_and_label_csvs(cfg.output_path + "validate-64x64-data.csv",
-                              cfg.output_path + "validate-label.csv",
+    write_data_and_label_csvs(cfg.valid_data_csv,
+                              cfg.valid_label_out,
                               vld_frames,
                               None)
-    make_local_split(0.1, cfg.output_path)
+    make_local_split(0.1, cfg)
