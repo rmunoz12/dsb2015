@@ -106,7 +106,7 @@ def write_data_and_label_csvs(data_fname, label_fname, frames, label_map):
     return result
 
 
-def split_csv(src_csv, split_to_train, train_csv, test_csv):
+def split_csv(src_csv, split_to_train, train_csv, test_csv, train_label_csv):
     """
     Splits `src_csv` into `train_csv` and `test_csv`.
 
@@ -125,11 +125,14 @@ def split_csv(src_csv, split_to_train, train_csv, test_csv):
     test_csv : str
         Path to output test csv file.
     """
+    index_by_line = \
+        np.loadtxt(train_label_csv, delimiter=",")[:, 0].astype("int")
     ftrain = open(train_csv, "w")
     ftest = open(test_csv, "w")
     cnt = 0
     for l in open(src_csv):
-        if split_to_train[cnt]:
+        id = index_by_line[cnt]
+        if id in split_to_train:
             ftrain.write(l)
         else:
             ftest.write(l)
@@ -152,24 +155,26 @@ def make_local_split(test_frac, cfg):
     output_path : str
         Path to output folder, ending with a slash `/`.
     """
-    train_index = \
-        np.loadtxt(cfg.train_label_csv, delimiter=",")[:, 0].\
-            astype("int")
-    train_index = set(train_index)
-    num_test = int(len(train_index) * test_frac)
-    random.shuffle(list(train_index))
+    all_index = \
+        np.loadtxt(cfg.train_label_csv, delimiter=",")[:, 0].astype("int")
+    all_index = set(all_index)
+    num_test = int(len(all_index) * test_frac)
+    train_index = list(all_index)
+    random.shuffle(train_index)
     train_index = set(train_index[num_test:])
-    split_to_train = [x in train_index for x in train_index]
+    # split_to_train = [x in train_index for x in all_index]
     orig_path = cfg.train_label_csv.rsplit('/', 1)
     split_csv(cfg.train_label_csv,
-              split_to_train,
-              orig_path[0] + 'local_' + orig_path[1],
-              orig_path[0] + 'local_test' + orig_path[1][5:])  # remove 'train'
+              train_index,
+              orig_path[0] + '/local_' + orig_path[1],
+              orig_path[0] + '/local_test' + orig_path[1][5:],
+              cfg.train_label_csv)  # remove 'train'
     orig_path = cfg.train_data_csv.rsplit('/', 1)
     split_csv(cfg.train_data_csv,
-              split_to_train,
-              orig_path[0] + 'local_' + orig_path[1],
-              cfg.output_path + 'local_test' + orig_path[1][5:])  # remove 'train'
+              train_index,
+              orig_path[0] + '/local_' + orig_path[1],
+              cfg.output_path + '/local_test' + orig_path[1][5:],
+              cfg.train_label_csv)  # remove 'train'
 
 
 def preprocess(cfg):

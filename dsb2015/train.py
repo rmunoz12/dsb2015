@@ -2,6 +2,7 @@
 
 import csv
 import logging
+import random
 
 import numpy as np
 import mxnet as mx
@@ -181,6 +182,8 @@ def write_validation_results(systole_result, diastole_result, cfg):
 
 
 def train(cfg):
+    random.seed()
+
     # Write encoded label into the target csv
     # We use CSV so that not all data need to sit into memory
     # You can also use inmemory numpy array if your machine is large enough
