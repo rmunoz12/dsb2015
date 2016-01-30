@@ -74,7 +74,8 @@ class KSH_Init(mx.initializer.Normal):
         arr[:] = 1.0
 
 
-def train_model(data_csv, label_csv, batch_size=128, network=get_alexnet()):
+def train_model(data_csv, label_csv, batch_size=128, network=get_alexnet(),
+                num_epoch=60):
     devs = [mx.gpu(0)]
     lr = mx.lr_scheduler.FactorScheduler(step=800, factor=0.9)
 
@@ -190,8 +191,10 @@ def train(cfg):
     encode_csv(cfg.train_label_csv,
                cfg.train_systole_out, cfg.train_diastole_out)
 
-    systole_model = train_model(cfg.train_data_csv, cfg.train_systole_out)
-    diastole_model = train_model(cfg.train_data_csv, cfg.train_diastole_out)
+    systole_model = train_model(cfg.train_data_csv, cfg.train_systole_out,
+                                num_epoch=120, batch_size=32, network=get_vgg())
+    diastole_model = train_model(cfg.train_data_csv, cfg.train_diastole_out,
+                                 num_epoch=120, batch_size=32, network=get_vgg())
 
     data_validate = mx.io.CSVIter(data_csv=cfg.valid_data_csv,
                                   data_shape=(30, 128, 128),

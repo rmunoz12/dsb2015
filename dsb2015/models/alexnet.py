@@ -4,10 +4,9 @@ def get_alexnet():
     """ A alexnet style net, takes difference of each frame as input."""
     source = mx.sym.Variable("data")
     source = (source - 128) * (1.0/128)
-    # frames = mx.sym.SliceChannel(source, num_outputs=30)
-    # # diffs = [frames[i+1] - frames[i] for i in range(29)]
-    # # source = mx.sym.Concat(*diffs)
-    # source = mx.sym.Concat(*frames)
+    frames = mx.sym.SliceChannel(source, num_outputs=30)
+    diffs = [frames[i+1] - frames[i] for i in range(29)]
+    source = mx.sym.Concat(*diffs)
     net = mx.sym.Convolution(source, kernel=(4, 4), num_filter=32)
     net = mx.sym.BatchNorm(net, fix_gamma=True)
     net = mx.sym.Activation(net, act_type="relu")
